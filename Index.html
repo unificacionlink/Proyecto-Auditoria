@@ -39,6 +39,34 @@
     /* Colores para la validación visual de campos */
     .borde-verde { border: 2px solid #28a745 !important; background-color: #f8fff8 !important; transition: all 0.3s ease; }
     .borde-rojo { border: 2px solid #dc3545 !important; background-color: #fff8f8 !important; transition: all 0.3s ease; }
+
+    /* === VISTA PREVIA DEL ACTA === */
+    .preview-backdrop {
+      position: fixed; inset: 0; z-index: 1050; display: none; align-items: center; justify-content: center;
+      padding: 18px; background: rgba(15, 23, 42, 0.55);
+    }
+    .preview-backdrop.active { display: flex; }
+    .preview-modal {
+      width: min(760px, 100%); max-height: 92vh; overflow: auto; background: #fff; border-radius: 8px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.25);
+    }
+    .preview-header {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      padding: 18px 22px; border-bottom: 1px solid #dee2e6;
+    }
+    .preview-body { padding: 20px 22px; }
+    .preview-section-title {
+      margin: 18px 0 10px; color: #0056b3; font-weight: 700; font-size: 0.95rem;
+      border-bottom: 1px solid #e9ecef; padding-bottom: 6px;
+    }
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .preview-item { border: 1px solid #e9ecef; border-radius: 6px; padding: 10px 12px; background: #f8f9fa; }
+    .preview-label { color: #6c757d; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .preview-value { color: #212529; font-weight: 600; word-break: break-word; }
+    .preview-actions {
+      display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px;
+      border-top: 1px solid #dee2e6; background: #f8f9fa; position: sticky; bottom: 0;
+    }
   </style>
 </head>
 <body>
@@ -214,7 +242,7 @@
         <div class="col-md-12"><label class="form-label">Observación</label><input type="text" name="observacion" class="form-control" value="-"></div>
       </div>
 
-      <button type="submit" id="btnEnv" class="btn btn-primary w-100 mt-5 py-3 fw-bold fs-5 shadow">GENERAR ACTA EN PDF</button>
+      <button type="submit" id="btnEnv" class="btn btn-primary w-100 mt-5 py-3 fw-bold fs-5 shadow">REVISAR Y GENERAR ACTA</button>
       <div id="cajaEnlace" class="alert alert-success mt-4 text-center shadow-sm" style="display: none;"></div>
 
     </form>
@@ -233,11 +261,47 @@
 
 </div>
 
+<div id="modalVistaPrevia" class="preview-backdrop" aria-hidden="true">
+  <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="tituloVistaPrevia">
+    <div class="preview-header">
+      <div>
+        <h4 id="tituloVistaPrevia" class="mb-1 text-primary fw-bold">Vista previa del acta</h4>
+        <div class="text-muted small">Revisa los datos antes de generar el documento.</div>
+      </div>
+      <button type="button" class="btn-close" aria-label="Cerrar vista previa" onclick="cerrarVistaPrevia()"></button>
+    </div>
+
+    <div class="preview-body">
+      <div class="alert alert-info py-2 small mb-0">
+        Si algun dato no coincide, vuelve al formulario y editalo antes de confirmar.
+      </div>
+
+      <div class="preview-section-title">Datos del colaborador</div>
+      <div id="previewColaborador" class="preview-grid"></div>
+
+      <div class="preview-section-title">Equipo asignado</div>
+      <div id="previewEquipo" class="preview-grid"></div>
+
+      <div class="preview-section-title">Detalle tecnico</div>
+      <div id="previewDetalle" class="preview-grid"></div>
+
+      <div class="preview-section-title">Tramite</div>
+      <div id="previewTramite" class="preview-grid"></div>
+    </div>
+
+    <div class="preview-actions">
+      <button type="button" class="btn btn-outline-secondary" onclick="cerrarVistaPrevia()">Editar datos</button>
+      <button type="button" id="btnConfirmarPreview" class="btn btn-primary fw-bold" onclick="confirmarVistaPrevia()">Confirmar y generar acta</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
 
 <script>
   let calendarioFirma;
+  let datosPendientesActa = null;
 
   // ✨ NUEVA FUNCIÓN: Motor de navegación
   function cambiarVista(idVista) {
@@ -305,31 +369,178 @@
 
   function enviarDatos(e) {
     e.preventDefault();
+    datosPendientesActa = Object.fromEntries(new FormData(e.target));
+    abrirVistaPrevia(datosPendientesActa);
+  }
+
+  function abrirVistaPrevia(datos) {
+    llenarVistaPrevia("previewColaborador", [
+      ["Nombres", datos.nombres],
+      ["DNI", datos.dni],
+      ["Email", datos.email],
+      ["Cargo", datos.cargo],
+      ["Area", datos.area]
+    ]);
+
+    llenarVistaPrevia("previewEquipo", [
+      ["Tipo de equipo", datos.equipoDrop],
+      ["Tipo A/B", datos.tipoEquipoAB],
+      ["Marca", datos.marca],
+      ["Modelo", datos.modelo],
+      ["Serie/IMEI", datos.serial],
+      ["Otro equipo", datos.otrosEq]
+    ]);
+
+    const detalle = datos.equipoDrop === "Equipo Celular"
+      ? [
+          ["Numero celular", datos.numCelular],
+          ["Operador", datos.operador],
+          ["Numero de plan", datos.numPlan]
+        ]
+      : [
+          ["Procesador", datos.procesador],
+          ["RAM", datos.ram],
+          ["Almacenamiento", datos.almacenamiento],
+          ["Monitor", datos.monitor],
+          ["S/N Monitor", datos.monitorSN],
+          ["Cargador", datos.cargadorMod],
+          ["S/N Cargador", datos.cargadorSN],
+          ["Accesorios", obtenerAccesorios(datos)]
+        ];
+
+    llenarVistaPrevia("previewDetalle", detalle);
+    llenarVistaPrevia("previewTramite", [
+      ["Fecha", datos.fechaTramite],
+      ["Motivo", datos.motivo],
+      ["Observacion", datos.observacion]
+    ]);
+
+    const modal = document.getElementById("modalVistaPrevia");
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+    document.getElementById("btnConfirmarPreview").focus();
+  }
+
+  function llenarVistaPrevia(idContenedor, items) {
+    const contenedor = document.getElementById(idContenedor);
+    contenedor.textContent = "";
+
+    items.forEach(([etiqueta, valor]) => {
+      const item = document.createElement("div");
+      item.className = "preview-item";
+
+      const label = document.createElement("div");
+      label.className = "preview-label";
+      label.textContent = etiqueta;
+
+      const value = document.createElement("div");
+      value.className = "preview-value";
+      value.textContent = valorVistaPrevia(valor);
+
+      item.appendChild(label);
+      item.appendChild(value);
+      contenedor.appendChild(item);
+    });
+  }
+
+  function valorVistaPrevia(valor) {
+    const texto = valor === undefined || valor === null ? "" : String(valor).trim();
+    return texto || "-";
+  }
+
+  function obtenerAccesorios(datos) {
+    const accesorios = [];
+    if (datos.chkCargador) accesorios.push("Cargador de bateria");
+    if (datos.chkMouse) accesorios.push("Mouse / Pad mouse");
+    if (datos.chkCablePoder) accesorios.push("Cable de poder / adaptador");
+    if (datos.chkMaletin) accesorios.push("Maletin / mochila");
+    if (datos.chkAudifonos) accesorios.push("Audifonos / auriculares");
+    if (datos.cableAdicional && datos.cableAdicional.trim()) accesorios.push("Cable adicional: " + datos.cableAdicional.trim());
+    return accesorios.length ? accesorios.join(", ") : "-";
+  }
+
+  function cerrarVistaPrevia() {
+    const modal = document.getElementById("modalVistaPrevia");
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function confirmarVistaPrevia() {
+    if (!datosPendientesActa) return;
+    generarActa(datosPendientesActa);
+  }
+
+  function generarActa(datos) {
     const btn = document.getElementById('btnEnv');
+    const btnPreview = document.getElementById('btnConfirmarPreview');
     btn.disabled = true; btn.innerText = "Guardando borrador...";
-    const datos = Object.fromEntries(new FormData(e.target));
+    btnPreview.disabled = true; btnPreview.innerText = "Generando...";
     const correoColaborador = datos.email;
     const nombreColaborador = datos.nombres;
 
     google.script.run.withSuccessHandler(res => {
+      btnPreview.disabled = false; btnPreview.innerText = "Confirmar y generar acta";
       if(res.exito) {
-        document.getElementById('cajaEnlace').style.display = 'block';
-        document.getElementById('cajaEnlace').innerHTML = `
-          <strong class="text-success">¡Borrador guardado!</strong><br>
-          <span class="small">Enlace para <b>${nombreColaborador}</b>:</span>
-          <div class="input-group mt-2 mb-1">
-            <input type="text" id="linkGenerado" class="form-control bg-white" value="${res.link}" readonly>
-            <button class="btn btn-success" type="button" onclick="copiarLink()">Copiar</button>
-            <button class="btn btn-primary" type="button" id="btnEnviarCorreo" onclick="enviarCorreoFirma('${res.link}', '${correoColaborador}', '${nombreColaborador}')">✉️ Enviar Correo</button>
-          </div>
-        `;
+        cerrarVistaPrevia();
+        mostrarCajaEnlace(res.link, correoColaborador, nombreColaborador);
         document.getElementById('formTI').reset();
         mostrarCampos();
         calendarioFirma.setDate("today");
         actualizarColoresFormulario();
+        datosPendientesActa = null;
       } else { alert("Error: " + res.error); }
-      btn.disabled = false; btn.innerText = "GENERAR ACTA EN PDF";
+      btn.disabled = false; btn.innerText = "REVISAR Y GENERAR ACTA";
+    }).withFailureHandler(err => {
+      btnPreview.disabled = false; btnPreview.innerText = "Confirmar y generar acta";
+      btn.disabled = false; btn.innerText = "REVISAR Y GENERAR ACTA";
+      alert("Error: " + (err.message || err));
     }).procesarFormulario(datos);
+  }
+
+  function mostrarCajaEnlace(link, email, nombre) {
+    const caja = document.getElementById('cajaEnlace');
+    caja.style.display = 'block';
+    caja.textContent = '';
+
+    const titulo = document.createElement('strong');
+    titulo.className = 'text-success';
+    titulo.textContent = '¡Borrador guardado!';
+
+    const subtitulo = document.createElement('span');
+    subtitulo.className = 'small';
+    subtitulo.textContent = 'Enlace para ' + valorVistaPrevia(nombre) + ':';
+
+    const grupo = document.createElement('div');
+    grupo.className = 'input-group mt-2 mb-1';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'linkGenerado';
+    input.className = 'form-control bg-white';
+    input.value = link;
+    input.readOnly = true;
+
+    const btnCopiar = document.createElement('button');
+    btnCopiar.className = 'btn btn-success';
+    btnCopiar.type = 'button';
+    btnCopiar.textContent = 'Copiar';
+    btnCopiar.addEventListener('click', copiarLink);
+
+    const btnCorreo = document.createElement('button');
+    btnCorreo.className = 'btn btn-primary';
+    btnCorreo.type = 'button';
+    btnCorreo.id = 'btnEnviarCorreo';
+    btnCorreo.textContent = 'Enviar Correo';
+    btnCorreo.addEventListener('click', () => enviarCorreoFirma(link, email, nombre));
+
+    grupo.appendChild(input);
+    grupo.appendChild(btnCopiar);
+    grupo.appendChild(btnCorreo);
+
+    caja.appendChild(titulo);
+    caja.appendChild(document.createElement('br'));
+    caja.appendChild(subtitulo);
+    caja.appendChild(grupo);
   }
 
   function enviarCorreoFirma(link, email, nombre) {
