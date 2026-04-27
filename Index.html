@@ -39,6 +39,32 @@
     /* Colores para la validación visual de campos */
     .borde-verde { border: 2px solid #28a745 !important; background-color: #f8fff8 !important; transition: all 0.3s ease; }
     .borde-rojo { border: 2px solid #dc3545 !important; background-color: #fff8f8 !important; transition: all 0.3s ease; }
+
+    /* QR para firma desde celular */
+    .qr-panel {
+      max-width: 360px;
+      margin: 18px auto 4px;
+      padding: 16px;
+      background: #f8fbff;
+      border: 1px solid #cfe2ff;
+      border-radius: 8px;
+    }
+    .qr-box {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 172px;
+      margin: 12px auto;
+    }
+    .qr-box canvas,
+    .qr-box img {
+      width: 168px;
+      height: 168px;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
@@ -235,6 +261,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
   let calendarioFirma;
@@ -322,7 +349,13 @@
             <button class="btn btn-success" type="button" onclick="copiarLink()">Copiar</button>
             <button class="btn btn-primary" type="button" id="btnEnviarCorreo" onclick="enviarCorreoFirma('${res.link}', '${correoColaborador}', '${nombreColaborador}')">✉️ Enviar Correo</button>
           </div>
+          <div class="qr-panel">
+            <div class="fw-bold text-primary">Firmar desde celular</div>
+            <div class="small text-muted">Escanea este código con la cámara del teléfono para abrir el enlace de firma.</div>
+            <div id="qrFirma" class="qr-box"></div>
+          </div>
         `;
+        renderizarQrFirma(res.link);
         document.getElementById('formTI').reset();
         mostrarCampos();
         calendarioFirma.setDate("today");
@@ -330,6 +363,26 @@
       } else { alert("Error: " + res.error); }
       btn.disabled = false; btn.innerText = "GENERAR ACTA EN PDF";
     }).procesarFormulario(datos);
+  }
+
+  function renderizarQrFirma(link) {
+    const contenedor = document.getElementById('qrFirma');
+    if (!contenedor) return;
+
+    contenedor.innerHTML = "";
+    if (typeof QRCode === "undefined") {
+      contenedor.innerHTML = '<div class="text-danger small">No se pudo cargar el QR. Usa el enlace generado.</div>';
+      return;
+    }
+
+    new QRCode(contenedor, {
+      text: link,
+      width: 168,
+      height: 168,
+      colorDark: "#0f172a",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
+    });
   }
 
   function enviarCorreoFirma(link, email, nombre) {
