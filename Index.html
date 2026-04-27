@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema TI - Goydel</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    body { background: #f4f7f6; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+    .container { max-width: 900px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    
+    /* === ESTILOS DEL MENÚ Y NAVEGACIÓN === */
+    .menu-container { text-align: center; padding: 40px 10px; }
+    .menu-title { color: #0056b3; margin-bottom: 30px; font-size: 28px; font-weight: bold; border-bottom: 2px solid #0056b3; padding-bottom: 10px;}
+    .btn-menu { 
+      display: block; width: 100%; max-width: 350px; margin: 15px auto; padding: 20px;
+      font-size: 18px; cursor: pointer; border: none; border-radius: 8px; transition: 0.3s;
+      text-decoration: none; font-weight: 600; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .btn-nueva { background-color: #007bff; color: white; }
+    .btn-nueva:hover { background-color: #0056b3; transform: translateY(-2px); }
+    .btn-masiva { background-color: #28a745; color: white; }
+    .btn-masiva:hover { background-color: #218838; transform: translateY(-2px); }
+    .btn-volver { background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; transition: 0.3s; font-weight: bold;}
+    .btn-volver:hover { background: #5a6268; }
+    
+    /* Lógica de ocultar/mostrar pantallas */
+    .view { display: none; }
+    .active { display: block; }
+    /* ===================================== */
+
+    /* === ESTILOS ORIGINALES DEL FORMULARIO === */
+    .header-title { border-bottom: 2px solid #0056b3; color: #0056b3; padding-bottom: 10px; margin-bottom: 20px; font-weight: bold;}
+    .section-head { background: #e9ecef; padding: 8px 15px; font-weight: bold; margin-top: 20px; border-radius: 4px; }
+    .caja-dinamica { background-color: #f8f9fa; border-left: 4px solid #0056b3; padding: 15px; border-radius: 4px; border: 1px solid #dee2e6; margin-top: 15px; }
+    .form-check-label { cursor: pointer; }
+    .btn-equipo { font-size: 1.1rem; padding: 15px; border-width: 2px; }
+
+    /* Colores para la validación visual de campos */
+    .borde-verde { border: 2px solid #28a745 !important; background-color: #f8fff8 !important; transition: all 0.3s ease; }
+    .borde-rojo { border: 2px solid #dc3545 !important; background-color: #fff8f8 !important; transition: all 0.3s ease; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div id="vista-menu" class="view active">
+    <div class="menu-container">
+      <div class="menu-title">SISTEMA DE GESTIÓN DE ACTAS TI</div>
+      <p class="text-muted mb-4">Seleccione la operación que desea realizar:</p>
+      
+      <button class="btn-menu btn-nueva" onclick="cambiarVista('vista-nueva-acta')">
+        📝 GENERAR NUEVA ACTA
+      </button>
+      
+      <button class="btn-menu btn-masiva" onclick="cambiarVista('vista-carga-masiva')">
+        📂 CARGA MASIVA (Excel)
+      </button>
+    </div>
+  </div>
+
+  <div id="vista-nueva-acta" class="view">
+    <button class="btn-volver" onclick="cambiarVista('vista-menu')">⬅ Volver al Menú</button>
+
+    <h2 class="header-title text-center">Formato F-TI-03: Gestión de Equipos</h2>
+    
+    <form id="formTI" onsubmit="enviarDatos(event)">
+      
+      <div class="section-head">I. DATOS DEL COLABORADOR</div>
+      <div class="row g-3 p-2">
+        <div class="col-md-8"><label class="form-label">Nombres Completos</label><input type="text" name="nombres" class="form-control" required></div>
+        <div class="col-md-4">
+         <label class="form-label">DNI</label>
+         <div class="input-group">
+        <input type="text" name="dni" class="form-control" maxlength="8" onkeyup="buscarDni(this.value)" required>
+        <span class="input-group-text bg-light" id="iconoDni">🔍</span>
+         </div>
+          </div>
+        <div class="col-md-12"><label class="form-label">Correo Electrónico (Email)</label><input type="email" name="email" class="form-control" required></div>
+        <div class="col-md-6"><label class="form-label">Cargo</label><input type="text" name="cargo" class="form-control"></div>
+        <div class="col-md-6"><label class="form-label">Área</label><input type="text" name="area" class="form-control"></div>
+      </div>
+
+      <div class="section-head">II. TIPO DE EQUIPO A GESTIONAR</div>
+      <div class="alert alert-info mt-2 mb-2 mx-1 shadow-sm border-info">
+        <label class="form-label fw-bold text-info-emphasis mb-1">⚡ Autocompletar desde AuditorVs03</label>
+        <input type="text" class="form-control border-info" id="inputAuditor" placeholder="Selecciona la fila del equipo en tu Excel, presiona Ctrl+C y pega aquí (Ctrl+V)..." oninput="extraerDatosExcel(this.value)">
+        <div class="form-text text-muted small mt-1">Detectará automáticamente Serie, Marca, Modelo, Procesador, RAM, Almacenamiento y SO.</div>
+      </div>
+      <div class="row g-3 p-3 text-center">
+        <div class="col-6">
+          <input type="radio" class="btn-check" name="equipoDrop" id="btnPC" value="Computadora portatil" onchange="mostrarCampos()" checked>
+          <label class="btn btn-outline-primary w-100 fw-bold btn-equipo" for="btnPC">💻 COMPUTADORA PORTÁTIL</label>
+        </div>
+        <div class="col-6">
+          <input type="radio" class="btn-check" name="equipoDrop" id="btnCel" value="Equipo Celular" onchange="mostrarCampos()">
+          <label class="btn btn-outline-primary w-100 fw-bold btn-equipo" for="btnCel">📱 EQUIPO CELULAR</label>
+        </div>
+      </div>
+
+      <div class="row g-3 p-2">
+        <div class="col-md-3"><label class="form-label">Tipo (A/B)</label>
+          <select name="tipoEquipoAB" class="form-select">
+            <option value="-">- Ninguno -</option>
+            <option value="A">Tipo A</option>
+            <option value="B">Tipo B</option>
+          </select>
+        </div>
+        <div class="col-md-3"><label class="form-label">Marca</label><input type="text" name="marca" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label">Modelo</label><input type="text" name="modelo" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label">Serie/IMEI</label><input type="text" name="serial" class="form-control"></div>
+        <div class="col-md-12 mt-2">
+          <label class="form-label text-muted small mb-0">¿Es otro equipo distinto a PC/Celular?</label>
+          <input type="text" name="otrosEq" class="form-control form-control-sm" placeholder="Especificar aquí (Ej: Tablet, Impresora...)">
+        </div>
+      </div>
+
+      <div id="apartadoPC" class="caja-dinamica">
+        <h5 class="text-primary fw-bold border-bottom pb-2">▶ Hardware Principal (PC/Laptop)</h5>
+        <div class="row g-3 mt-1 mb-3">
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Procesador (Hz)</label><input type="text" name="procesador" class="form-control form-control-sm" value="-"></div>
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Memoria RAM (GB)</label><input type="text" name="ram" class="form-control form-control-sm" value="-"></div>
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Mem. Interna (GB)</label><input type="text" name="almacenamiento" class="form-control form-control-sm" value="-"></div>
+          
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Pantalla (pulg.)</label><input type="text" name="pantalla" class="form-control form-control-sm" value="-"></div>
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Cámara (MP)</label><input type="text" name="camara" class="form-control form-control-sm" value="-"></div>
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Capacidad Batería (mAh)</label><input type="text" name="bateria" class="form-control form-control-sm" value="-"></div>
+        </div>
+
+        <h6 class="text-primary fw-bold border-bottom pb-1 mt-3">Componentes y Números de Serie (S/N)</h6>
+        <div class="row g-2 mt-1">
+          <div class="col-md-6 d-flex gap-2"><input type="text" name="monitor" class="form-control form-control-sm w-50" placeholder="Monitor (Marca/Mod)"><input type="text" name="monitorSN" class="form-control form-control-sm w-50" placeholder="S/N Monitor"></div>
+          <div class="col-md-6 d-flex gap-2"><input type="text" name="cargadorMod" class="form-control form-control-sm w-50" placeholder="Cargador (Marca/Mod)"><input type="text" name="cargadorSN" class="form-control form-control-sm w-50" placeholder="S/N Cargador"></div>
+          
+          <div class="col-md-6 d-flex gap-2"><input type="text" name="mouseMod" class="form-control form-control-sm w-50" placeholder="Mouse (Marca/Mod)"><input type="text" name="mouseSN" class="form-control form-control-sm w-50" placeholder="S/N Mouse"></div>
+          <div class="col-md-6 d-flex gap-2"><input type="text" name="teclado" class="form-control form-control-sm w-50" placeholder="Teclado (Marca/Mod)"><input type="text" name="tecladoSN" class="form-control form-control-sm w-50" placeholder="S/N Teclado"></div>
+          
+          <div class="col-md-6 d-flex gap-2"><input type="text" name="cooler" class="form-control form-control-sm w-50" placeholder="Cooler (Marca/Mod)"><input type="text" name="coolerSN" class="form-control form-control-sm w-50" placeholder="S/N Cooler"></div>
+          <div class="col-md-6"><input type="text" name="so" class="form-control form-control-sm" placeholder="Sistemas Operativo Window" value="Windows 11 Pro"></div>
+        </div>
+
+        <h6 class="text-primary fw-bold border-bottom pb-1 mt-4">Softwares Instalados</h6>
+        <div class="row g-2 mt-1">
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">MS Office</label><input type="text" name="office" class="form-control form-control-sm" value="Office 2021"></div>
+          <div class="col-md-2"><label class="form-label text-muted small mb-0">WinRAR</label><input type="text" name="winrar" class="form-control form-control-sm" value="Sí"></div>
+          <div class="col-md-2"><label class="form-label text-muted small mb-0">PDF</label><input type="text" name="pdf" class="form-control form-control-sm" value="Sí"></div>
+          <div class="col-md-4"><label class="form-label text-muted small mb-0">Nitro / Otros</label><div class="d-flex gap-1"><input type="text" name="nitro" class="form-control form-control-sm" placeholder="Nitro"><input type="text" name="otrosSW" class="form-control form-control-sm" placeholder="Otros"></div></div>
+        </div>
+      </div>
+
+      <div id="apartadoCelular" class="caja-dinamica" style="display: none;">
+        <h5 class="text-primary fw-bold border-bottom pb-2">▶ Detalles Específicos: Línea Celular</h5>
+        <div class="row g-3 mt-1">
+          <div class="col-md-4"><label class="form-label">Número Celular</label><input type="text" name="numCelular" class="form-control" value="-"></div>
+          <div class="col-md-4"><label class="form-label">Operador</label>
+            <select name="operador" class="form-select">
+              <option value="-">-</option>
+              <option value="Claro">Claro</option>
+              <option value="Movistar">Movistar</option>
+              <option value="Entel">Entel</option>
+              <option value="Bitel">Bitel</option>
+            </select>
+          </div>
+          <div class="col-md-4"><label class="form-label">Número de Plan</label><input type="text" name="numPlan" class="form-control" value="-"></div>
+        </div>
+      </div>
+
+      <div id="apartadoAccesorios">
+        <div class="section-head">III. ACCESORIOS Y PERIFÉRICOS</div>
+        <div class="row g-3 p-3 border rounded mx-1 mt-2 bg-white">
+          <div class="col-md-6">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="chkCargador" id="chkCargador" value="X">
+              <label class="form-check-label" for="chkCargador">CARGADOR DE BATERIA</label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="chkMouse" id="chkMouse" value="X">
+              <label class="form-check-label" for="chkMouse">MOUSE / PAD MOUSE</label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="chkCablePoder" id="chkCablePoder" value="X">
+              <label class="form-check-label" for="chkCablePoder">CABLE DE PODER / ADAPTADOR</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="chkMaletin" id="chkMaletin" value="X">
+              <label class="form-check-label" for="chkMaletin">MALETÍN / MOCHILA</label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="chkAudifonos" id="chkAudifonos" value="X">
+              <label class="form-check-label" for="chkAudifonos">AUDÍFONOS / AURICULARES</label>
+            </div>
+            <div class="mt-3 d-flex align-items-center border-top pt-2">
+              <label class="form-label me-2 mb-0 fw-bold text-nowrap">CABLE ADICIONAL:</label>
+              <input type="text" name="cableAdicional" class="form-control form-control-sm" placeholder="Especificar si aplica...">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <div class="section-head">IV. TRÁMITE Y FIRMA TI</div>
+      <div class="row g-3 p-2 mb-4">
+        <div class="col-md-4"><label class="form-label">Fecha del Trámite</label><input type="text" name="fechaTramite" id="fecha" class="form-control shadow-sm bg-white" placeholder="dd/mm/yy"></div>
+        
+        <div class="col-md-8"><label class="form-label fw-bold text-primary">Motivo del Trámite</label>
+          <select name="motivo" class="form-select border-primary shadow-sm">
+            <option value="Entrega de equipo">Entrega de equipo</option>
+            <option value="Devolución o Cambio de equipo">Devolución o Cambio de equipo</option>
+          </select>
+        </div>
+        
+        <div class="col-md-12"><label class="form-label">Observación</label><input type="text" name="observacion" class="form-control" value="-"></div>
+      </div>
+
+      <button type="submit" id="btnEnv" class="btn btn-primary w-100 mt-5 py-3 fw-bold fs-5 shadow">GENERAR ACTA EN PDF</button>
+      <div id="cajaEnlace" class="alert alert-success mt-4 text-center shadow-sm" style="display: none;"></div>
+
+    </form>
+  </div>
+
+  <div id="vista-carga-masiva" class="view">
+    <button class="btn-volver" onclick="cambiarVista('vista-menu')">⬅ Volver al Menú</button>
+    
+    <div class="text-center mt-4">
+      <h2 class="header-title">Carga Masiva de Actas</h2>
+      <div class="alert alert-warning d-inline-block mt-3">
+        🚧 Módulo en construcción. Aquí agregaremos la lógica para subir el Excel.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+
+<script>
+  let calendarioFirma;
+
+  // ✨ NUEVA FUNCIÓN: Motor de navegación
+  function cambiarVista(idVista) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(idVista).classList.add('active');
+    window.scrollTo(0, 0); // Sube la pantalla al cambiar de vista
+  }
+
+  // ==========================================
+  // TUS FUNCIONES ORIGINALES (Intactas)
+  // ==========================================
+  function buscarDni(dni) {
+    const icono = document.getElementById('iconoDni');
+    if (dni.length === 8) {
+      icono.innerHTML = "⏳"; 
+      google.script.run.withSuccessHandler(res => {
+        if (res.exito) {
+          document.querySelector('[name="nombres"]').value = res.nombres;
+          document.querySelector('[name="cargo"]').value = res.cargo;
+          document.querySelector('[name="area"]').value = res.area;
+          icono.innerHTML = "✅"; 
+          actualizarColoresFormulario(); 
+        } else {
+          icono.innerHTML = "❌"; 
+        }
+      }).buscarDatosPorDNI(dni); 
+    } else {
+      icono.innerHTML = "🔍"; 
+      if (dni.length < 8 && icono.innerHTML !== "🔍") {
+         document.querySelector('[name="nombres"]').value = "";
+         document.querySelector('[name="cargo"]').value = "";
+         document.querySelector('[name="area"]').value = "";
+         actualizarColoresFormulario();
+      }
+    }
+  }
+
+  function mostrarCampos() {
+    const seleccionPC = document.getElementById('btnPC').checked;
+    const divPC = document.getElementById('apartadoPC');
+    const divCelular = document.getElementById('apartadoCelular');
+    const divAccesorios = document.getElementById('apartadoAccesorios'); 
+
+    if (seleccionPC) {
+      divPC.style.display = 'block';
+      divAccesorios.style.display = 'block'; 
+      divCelular.style.display = 'none';
+    } else {
+      divPC.style.display = 'none';
+      divAccesorios.style.display = 'none';  
+      divCelular.style.display = 'block';
+    }
+  }
+
+  window.onload = () => {
+    calendarioFirma = flatpickr("#fecha", {
+      dateFormat: "d/m/y",    
+      defaultDate: "today",   
+      locale: "es",           
+      allowInput: true        
+    });
+    mostrarCampos();
+    actualizarColoresFormulario(); 
+  };
+
+  function enviarDatos(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnEnv');
+    btn.disabled = true; btn.innerText = "Guardando borrador...";
+    const datos = Object.fromEntries(new FormData(e.target));
+    const correoColaborador = datos.email;
+    const nombreColaborador = datos.nombres;
+
+    google.script.run.withSuccessHandler(res => {
+      if(res.exito) {
+        document.getElementById('cajaEnlace').style.display = 'block';
+        document.getElementById('cajaEnlace').innerHTML = `
+          <strong class="text-success">¡Borrador guardado!</strong><br>
+          <span class="small">Enlace para <b>${nombreColaborador}</b>:</span>
+          <div class="input-group mt-2 mb-1">
+            <input type="text" id="linkGenerado" class="form-control bg-white" value="${res.link}" readonly>
+            <button class="btn btn-success" type="button" onclick="copiarLink()">Copiar</button>
+            <button class="btn btn-primary" type="button" id="btnEnviarCorreo" onclick="enviarCorreoFirma('${res.link}', '${correoColaborador}', '${nombreColaborador}')">✉️ Enviar Correo</button>
+          </div>
+        `;
+        document.getElementById('formTI').reset();
+        mostrarCampos();
+        calendarioFirma.setDate("today");
+        actualizarColoresFormulario();
+      } else { alert("Error: " + res.error); }
+      btn.disabled = false; btn.innerText = "GENERAR ACTA EN PDF";
+    }).procesarFormulario(datos);
+  }
+
+  function enviarCorreoFirma(link, email, nombre) {
+    if (!email || email.trim() === "") {
+      alert("⚠️ El colaborador no tiene un correo registrado en el formulario.");
+      return;
+    }
+    const btn = document.getElementById('btnEnviarCorreo');
+    btn.disabled = true;
+    btn.innerText = "⏳ Enviando...";
+
+    google.script.run.withSuccessHandler(() => {
+      btn.innerText = "✅ ¡Enviado!";
+      btn.classList.replace("btn-primary", "btn-success");
+    }).withFailureHandler(err => {
+      alert("❌ Error al enviar correo: " + err);
+      btn.disabled = false;
+      btn.innerText = "✉️ Reintentar Correo";
+    }).enviarLinkPorCorreo(email, nombre, link);
+  }
+
+  function copiarLink() {
+    const linkInput = document.getElementById('linkGenerado');
+    linkInput.select();
+    document.execCommand('copy');
+    alert('¡Enlace copiado! Ya puedes pegarlo en WhatsApp o Correo.');
+  }
+
+  function extraerDatosExcel(textoPasted) {
+    if (!textoPasted || textoPasted.trim() === "") return;
+    const celdas = textoPasted.split('\n')[0].split('\t').map(c => c.trim());
+
+    if (celdas.length >= 10) {
+      const setValor = (nombre, valor) => {
+        if (valor && valor !== "") {
+          let input = document.querySelector(`[name="${nombre}"]`);
+          if (input) {
+            input.value = valor;
+            input.dispatchEvent(new Event('input')); 
+          }
+        }
+      };
+
+      setValor("nombres", celdas[0]);      
+      setValor("cargo", celdas[1]);        
+      setValor("area", celdas[2]);         
+      setValor("serial", celdas[5]);       
+      setValor("marca", celdas[6]);        
+      setValor("modelo", celdas[7]);       
+      setValor("procesador", celdas[8]);   
+      
+      if (celdas[10] && celdas[10].toUpperCase().includes("GB")) { setValor("ram", celdas[10]); } 
+      else if (celdas[9] && celdas[9].toUpperCase().includes("GB")) { setValor("ram", celdas[9]); }
+
+      if (celdas[13] && celdas[12].toUpperCase().includes("GB")) { setValor("almacenamiento", celdas[12]); } 
+      else if (celdas[11] && celdas[11].toUpperCase().includes("GB")) { setValor("almacenamiento", celdas[11]); }
+
+      if (celdas[20] && celdas[20].toUpperCase().includes("WINDOWS")) { setValor("so", celdas[20]); } 
+      else if (celdas[19] && celdas[19].toUpperCase().includes("WINDOWS")) { setValor("so", celdas[19]); }
+
+      const btnPC = document.getElementById('btnPC');
+      if (btnPC) {
+        btnPC.checked = true;
+        mostrarCampos();
+      }
+      setTimeout(() => { document.getElementById('inputAuditor').value = ""; }, 500);
+      actualizarColoresFormulario();
+    } else {
+      alert("⚠️ Faltan datos. Por favor, asegúrate de copiar toda la fila desde la columna A (Apellidos y Nombres).");
+    }
+  }
+
+  function revisarCampo(campo) {
+    if (campo.type === 'hidden' || campo.disabled) return;
+    if (campo.value.trim() !== "") {
+      campo.classList.remove("borde-rojo");
+      campo.classList.add("borde-verde");
+    } else {
+      campo.classList.remove("borde-verde");
+      campo.classList.add("borde-rojo");
+    }
+  }
+
+  function actualizarColoresFormulario() {
+    const todosLosCampos = document.querySelectorAll('input:not([type="button"]):not([type="submit"]):not([type="radio"]):not([type="checkbox"]), select, textarea');
+    todosLosCampos.forEach(campo => revisarCampo(campo));
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    const todosLosCampos = document.querySelectorAll('input:not([type="button"]):not([type="submit"]):not([type="radio"]):not([type="checkbox"]), select, textarea');
+    todosLosCampos.forEach(campo => {
+      campo.addEventListener("input", function() { revisarCampo(this); });
+      campo.addEventListener("blur", function() { revisarCampo(this); });
+    });
+
+    const inputAuditor = document.getElementById('inputAuditor');
+    if (inputAuditor) {
+      inputAuditor.addEventListener('input', function(e) {
+        const textoPasted = e.target.value;
+        if (textoPasted.includes('\t')) { 
+          extraerDatosExcel(textoPasted);
+        }
+      });
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Firma de Acta TI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f8f9fa; padding: 20px; font-family: sans-serif; }
+    .container { max-width: 500px; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin: auto;}
+    canvas { border: 2px dashed #0056b3; background: #fff; width: 100%; height: 160px; border-radius: 5px; cursor: crosshair; touch-action: none; }
+    #zonaFirma { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h4 class="text-center text-primary mb-3">Firma de Acta de Equipos</h4>
+  
+  <div id="zonaBusqueda">
+    <p class="text-muted small text-center">Ingrese su número de DNI para buscar actas pendientes de su firma.</p>
+    <div class="input-group mb-3">
+      <input type="text" id="dniColaborador" class="form-control" placeholder="Número de DNI" maxlength="8" value="<?= dniUrl ?>">
+      <button class="btn btn-primary" onclick="buscarActa()">Buscar</button>
+    </div>
+    <div id="mensajeBusqueda" class="text-center text-danger small"></div>
+  </div>
+
+  <div id="zonaFirma">
+    <div class="alert alert-info py-2 small mb-3">
+      <strong>Colaborador:</strong> <span id="lblNombre"></span><br>
+      <strong>Motivo:</strong> <span id="lblMotivo"></span><br>
+      <strong>Equipo:</strong> <span id="lblEquipo"></span>
+    </div>
+
+    <form id="formUsuario" onsubmit="enviarFirma(event)">
+      <input type="hidden" id="filaFirma" name="fila">
+      <input type="hidden" id="docIdFirma" name="docId">
+
+      <label class="fw-bold mb-1">Dibuje su firma aquí:</label>
+      <canvas id="canvasRes"></canvas>
+      <div class="text-end mb-3">
+        <button type="button" class="btn btn-sm btn-light border mt-1" onclick="limpiarCanvas()">Limpiar</button>
+      </div>
+
+      <button type="submit" id="btnFirmar" class="btn btn-success w-100 py-2 fw-bold">CONFIRMAR Y FIRMAR</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  let drawing = false;
+  const canvas = document.getElementById('canvasRes');
+  const ctx = canvas.getContext('2d');
+
+  function initCanvas() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    
+    const getPos = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches ? e.touches[0] : e;
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    };
+
+    const start = (e) => { drawing = true; ctx.beginPath(); const p = getPos(e); ctx.moveTo(p.x, p.y); e.preventDefault(); };
+    const move = (e) => { if(!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); };
+    const end = () => { drawing = false; };
+
+    canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+  }
+
+  function limpiarCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function buscarActa() {
+    const dni = document.getElementById('dniColaborador').value;
+    const msg = document.getElementById('mensajeBusqueda');
+    if(dni.length < 8) { msg.innerText = "Ingrese un DNI válido."; return; }
+    
+    msg.innerText = "Buscando...";
+    google.script.run.withSuccessHandler(res => {
+      if(res.encontrado) {
+        msg.innerText = "";
+        document.getElementById('lblNombre').innerText = res.nombres;
+        document.getElementById('lblMotivo').innerText = res.motivo;
+        document.getElementById('lblEquipo').innerText = res.equipo;
+        document.getElementById('filaFirma').value = res.fila;
+        document.getElementById('docIdFirma').value = res.docId;
+        
+        document.getElementById('zonaBusqueda').style.display = 'none';
+        document.getElementById('zonaFirma').style.display = 'block';
+        initCanvas();
+      } else {
+        msg.innerText = "No se encontraron actas pendientes para este DNI.";
+      }
+    }).buscarActaPendiente(dni);
+  }
+
+  function enviarFirma(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnFirmar');
+    btn.disabled = true; btn.innerText = "Cerrando acta y generando PDF...";
+
+    const datos = {
+      fila: document.getElementById('filaFirma').value,
+      docId: document.getElementById('docIdFirma').value,
+      firmaResponsable: canvas.toDataURL()
+    };
+
+    google.script.run.withSuccessHandler(res => {
+      if(res.exito) {
+        // Descargamos el acta terminada al empleado
+        const a = document.createElement("a");
+        a.href = "data:application/pdf;base64," + res.contenido;
+        a.download = res.nombreArchivo;
+        a.click();
+        
+        document.getElementById('zonaFirma').innerHTML = `<div class="alert alert-success text-center">¡Gracias! El acta ha sido firmada y descargada.</div>`;
+      } else {
+        alert("Error: " + res.error);
+        btn.disabled = false; btn.innerText = "CONFIRMAR Y FIRMAR";
+      }
+    }).procesarFirmaResponsable(datos);
+  }
+
+  // AQUÍ ESTÁ EL SEGUNDO CAMBIO: Función para buscar automáticamente si hay DNI en la URL
+  window.onload = function() {
+    const dniInput = document.getElementById('dniColaborador');
+    if(dniInput.value.length === 8) {
+      buscarActa();
+    }
+  };
+</script>
+</body>
+</html>
